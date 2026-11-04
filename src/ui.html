@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBFAST - AST Obfuscator</title>
+<style>
+:root{--bg:#0a0a0f;--card:#16161f;--text:#fff;--text2:#a0a0b0;--accent:#6366f1;--border:#2a2a35;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:1.5rem}
+.container{max-width:1200px;margin:0 auto}
+.header{text-align:center;margin-bottom:2rem}
+.header h1{font-size:2rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem}
+.card-title{font-size:1.1rem;font-weight:700;margin-bottom:1rem}
+textarea{width:100%;min-height:400px;padding:1rem;background:#0a0a0f;border:2px solid var(--border);border-radius:var(--r);color:var(--text);font-family:monospace;font-size:0.9rem;resize:vertical}
+textarea:focus{outline:none;border-color:var(--accent)}
+.btns{display:flex;gap:1rem;margin-top:1rem;flex-wrap:wrap}
+.btn{padding:0.75rem 1.5rem;border:none;border-radius:var(--r);font-weight:600;cursor:pointer;flex:1;min-width:140px;transition:all 0.3s}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(99,102,241,0.4)}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed}
+.btn-ok{background:#10b981;color:#fff}
+.btn-sec{background:#1a1a25;color:var(--text);border:1px solid var(--border)}
+.toast-container{position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem}
+.toast{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:0.75rem 1rem;min-width:280px;animation:slideIn 0.3s}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-ok{border-left:4px solid #10b981}
+.toast-err{border-left:4px solid #ef4444}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1rem;margin-top:1.5rem}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1rem;text-align:center}
+.stat-val{font-size:1.5rem;font-weight:700;color:var(--accent)}
+.stat-lbl{font-size:0.85rem;color:var(--text2);margin-top:0.25rem}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🚀 OBFAST - AST Obfuscator</h1>
+    <p style="color:var(--text2)">Real Recursive Descent Parser • 100% Semantic Safety</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-title">📝 Source Code (Luau)</div>
+      <textarea id="input" placeholder="local x = 10&#10;print(x)"></textarea>
+    </div>
+    <div class="card">
+      <div class="card-title">🔒 Obfuscated Output</div>
+      <textarea id="output" readonly placeholder="Hasil obfuscate muncul di sini..."></textarea>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="btn btn-primary" id="obfBtn">🔒 Obfuscate (AST)</button>
+    <button class="btn btn-ok" id="dlBtn" disabled>⬇️ Download</button>
+    <button class="btn btn-sec" id="cpBtn" disabled>📋 Copy</button>
+  </div>
+
+  <div class="stats" id="stats" style="display:none">
+    <div class="stat"><div class="stat-val" id="sOrig">0</div><div class="stat-lbl">Original</div></div>
+    <div class="stat"><div class="stat-val" id="sObf">0</div><div class="stat-lbl">Obfuscated</div></div>
+    <div class="stat"><div class="stat-val" id="sTime">0ms</div><div class="stat-lbl">Time</div></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script type="module">
+import { obfuscate } from '/engine.js';
+
+const $ = id => document.getElementById(id);
+const input = $('input'), output = $('output');
+const obfBtn = $('obfBtn'), dlBtn = $('dlBtn'), cpBtn = $('cpBtn');
+const toasts = $('toasts');
+
+function toast(type, msg) {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  toasts.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+obfBtn.addEventListener('click', async () => {
+  const src = input.value.trim();
+  if (!src) return toast('err', 'Input kosong!');
+  
+  obfBtn.disabled = true;
+  obfBtn.textContent = '⏳ Parsing AST...';
+  
+  const t0 = performance.now();
+  try {
+    const res = obfuscate(src);
+    output.value = res;
+    const dt = Math.round(performance.now() - t0);
+    
+    $('sOrig').textContent = src.length + ' B';
+    $('sObf').textContent = res.length + ' B';
+    $('sTime').textContent = dt + 'ms';
+    $('stats').style.display = 'grid';
+    
+    dlBtn.disabled = false;
+    cpBtn.disabled = false;
+    toast('ok', `AST Obfuscation selesai dalam ${dt}ms`);
+  } catch (e) {
+    toast('err', e.message);
+  } finally {
+    obfBtn.disabled = false;
+    obfBtn.textContent = '🔒 Obfuscate (AST)';
+  }
+});
+
+dlBtn.addEventListener('click', () => {
+  const blob = new Blob([output.value], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `obfast_${Date.now()}.lua`;
+  a.click();
+  toast('ok', 'Downloaded!');
+});
+
+cpBtn.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(output.value); toast('ok', 'Copied!'); }
+  catch { toast('err', 'Copy failed'); }
+});
+</script>
+</body>
+</html>
