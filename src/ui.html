@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OBFAST - AST Obfuscator</title>
+<title>OBFAST - Advanced Luau Obfuscator</title>
 <style>
 :root{--bg:#0a0a0f;--card:#16161f;--text:#fff;--text2:#a0a0b0;--accent:#6366f1;--border:#2a2a35;--r:10px}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -29,7 +29,7 @@ textarea:focus{outline:none;border-color:var(--accent)}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 .toast-ok{border-left:4px solid #10b981}
 .toast-err{border-left:4px solid #ef4444}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1rem;margin-top:1.5rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax:120px,1fr);gap:1rem;margin-top:1.5rem}
 .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1rem;text-align:center}
 .stat-val{font-size:1.5rem;font-weight:700;color:var(--accent)}
 .stat-lbl{font-size:0.85rem;color:var(--text2);margin-top:0.25rem}
@@ -38,8 +38,8 @@ textarea:focus{outline:none;border-color:var(--accent)}
 <body>
 <div class="container">
   <div class="header">
-    <h1>🚀 OBFAST - AST Obfuscator</h1>
-    <p style="color:var(--text2)">Real Recursive Descent Parser • 100% Semantic Safety</p>
+    <h1>🚀 OBFAST - Advanced Luau Obfuscator</h1>
+    <p style="color:var(--text2)">Scope-Aware Renaming • String Encryption • Number Obfuscation • Secure Packer</p>
   </div>
 
   <div class="grid">
@@ -54,7 +54,7 @@ textarea:focus{outline:none;border-color:var(--accent)}
   </div>
 
   <div class="btns">
-    <button class="btn btn-primary" id="obfBtn">🔒 Obfuscate (AST)</button>
+    <button class="btn btn-primary" id="obfBtn">🔒 Obfuscate</button>
     <button class="btn btn-ok" id="dlBtn" disabled>⬇️ Download</button>
     <button class="btn btn-sec" id="cpBtn" disabled>📋 Copy</button>
   </div>
@@ -89,7 +89,7 @@ obfBtn.addEventListener('click', async () => {
   if (!src) return toast('err', 'Input kosong!');
   
   obfBtn.disabled = true;
-  obfBtn.textContent = '⏳ Parsing AST...';
+  obfBtn.textContent = '⏳ Processing...';
   
   const t0 = performance.now();
   try {
@@ -104,12 +104,12 @@ obfBtn.addEventListener('click', async () => {
     
     dlBtn.disabled = false;
     cpBtn.disabled = false;
-    toast('ok', `AST Obfuscation selesai dalam ${dt}ms`);
+    toast('ok', `Selesai dalam ${dt}ms`);
   } catch (e) {
     toast('err', e.message);
   } finally {
     obfBtn.disabled = false;
-    obfBtn.textContent = '🔒 Obfuscate (AST)';
+    obfBtn.textContent = '🔒 Obfuscate';
   }
 });
 
