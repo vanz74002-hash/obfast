@@ -1,11 +1,14 @@
 // ============================================
-// OBFAST ENGINE V7.0 - AC EVASION & STABILITY
-// Focus: String Encryption, Minification, 
-//        100% Semantic Safety (No Var Renaming)
+// OBFAST ENGINE v8.0 - SAFE MODE (NO MINIFICATION)
+// Fix: Preserve original whitespace
 // ============================================
 
+function genName() {
+  return '_0x' + Math.random().toString(16).slice(2, 10).toUpperCase();
+}
+
 // ============================================
-// 1. ROBUST TOKENIZER
+// LAYER 1: TOKENIZER (PRESERVE WHITESPACE)
 // ============================================
 function tokenize(src) {
   const tokens = [];
@@ -14,51 +17,58 @@ function tokenize(src) {
   while (i < l) {
     const c = src[i], n = src[i+1], n2 = src[i+2];
 
-    // Block Comments --[[ ]] or --[=[ ]=]
+    // Block comment
     if (c === '-' && n === '-' && n2 === '[') {
       let eq = 0;
       while (src[i + 3 + eq] === '=') eq++;
       if (src[i + 3 + eq] === '[') {
         let end = src.indexOf(']' + '='.repeat(eq) + ']', i + 4 + eq);
         end = end === -1 ? l : end + 3 + eq;
-        // Skip comments entirely (Minification)
+        tokens.push({t: 'comment', v: src.slice(i, end)});
         i = end; continue;
       }
     }
 
-    // Line Comments --
+    // Line comment
     if (c === '-' && n === '-') {
       let end = src.indexOf('\n', i);
-      // Skip comments entirely
+      tokens.push({t: 'comment', v: src.slice(i, end === -1 ? l : end)});
       i = end === -1 ? l : end; continue;
     }
 
-    // Block Strings [=[ ]=] (Skip encryption for safety)
+    // Block string
     if (c === '[' && (n === '[' || n === '=')) {
       let eq = 0;
       while (src[i + 1 + eq] === '=') eq++;
       if (src[i + 1 + eq] === '[') {
         let end = src.indexOf(']' + '='.repeat(eq) + ']', i + 2 + eq);
         end = end === -1 ? l : end + 3 + eq;
-        tokens.push({t: 'string', v: src.slice(i, end), raw: null, long: true});
+        tokens.push({t: 'string', v: src.slice(i, end), r: null, long: true});
         i = end; continue;
       }
     }
 
-    // Normal Strings
+    // Normal string
     if (c === '"' || c === "'") {
-      let j = i + 1;
+      let j = i + 1, raw = '', hasEscape = false;
       while (j < l && src[j] !== c) {
-        if (src[j] === '\\') j += 2; // Skip escape
-        else j++;
+        if (src[j] === '\\') {
+          hasEscape = true;
+          let esc = src[j+1];
+          if (esc === 'n' || esc === 't' || esc === 'r' || esc === '\\' || esc === c) { j += 2; }
+          else if (esc === 'x' && j + 3 < l && /^[0-9a-fA-F]{2}$/.test(src.slice(j+2, j+4))) { j += 4; }
+          else { j += 2; }
+        } else {
+          if (src.charCodeAt(j) > 255) hasEscape = true;
+          j++;
+        }
       }
-      j++; // skip closing quote
-      const raw = src.slice(i+1, j-1);
-      tokens.push({t: 'string', v: src.slice(i, j), raw: raw, long: false});
+      j++;
+      tokens.push({t: 'string', v: src.slice(i, j), r: hasEscape ? null : src.slice(i+1, j-1), skip: hasEscape});
       i = j; continue;
     }
 
-    // Numbers
+    // Number
     if (/\d/.test(c) || (c === '.' && /\d/.test(n))) {
       let j = i;
       if (c === '0' && (n === 'x' || n === 'X')) {
@@ -74,11 +84,11 @@ function tokenize(src) {
       i = j; continue;
     }
 
-    // Identifiers & Keywords
+    // Identifier / Keyword
     if (/[a-zA-Z_]/.test(c)) {
       let j = i;
       while (j < l && /[a-zA-Z0-9_]/.test(src[j])) j++;
-      tokens.push({t: 'id', v: src.slice(i, j)}); // Treat all as id for safety
+      tokens.push({t: 'id', v: src.slice(i, j)});
       i = j; continue;
     }
 
@@ -93,42 +103,51 @@ function tokenize(src) {
       tokens.push({t: 'op', v: c}); i++; continue;
     }
 
-    // Whitespace (We will regenerate this later for minification)
+    // Whitespace (PRESERVE!)
     if (/\s/.test(c)) {
-      let j = i; while (j < l && /\s/.test(src[j])) j++;
-      i = j; continue; // Skip whitespace tokens
+      let j = i;
+      while (j < l && /\s/.test(src[j])) j++;
+      tokens.push({t: 'ws', v: src.slice(i, j)});
+      i = j; continue;
     }
 
-    i++; // Skip unknown
+    tokens.push({t: 'unk', v: c}); i++;
   }
   return tokens;
 }
 
 // ============================================
-// 2. STRING ENCRYPTION (AC BYPASS)
+// LAYER 2: STRING ENCRYPTION
 // ============================================
 function encryptStrings(tokens) {
-  const decoderName = '_0x' + Math.random().toString(16).slice(2, 6).toUpperCase();
-  const decoderCode = `local ${decoderName}=function(t)local r=""for i=1,#t do r=r..string.char(t[i])end return r end`;
-  
-  const newTokens = [{t: 'code', v: decoderCode}, {t: 'ws', v: ' '}];
-  
+  const strTable = [];
+  const strMap = new Map();
+
   for (const tk of tokens) {
-    if (tk.t === 'string' && !tk.long && tk.raw) {
-      // Skip very short strings (like "x", "y") to save space
-      if (tk.raw.length < 2) {
-        newTokens.push(tk);
-        continue;
+    if (tk.t === 'string' && !tk.skip && tk.r && tk.r.length > 0) {
+      if (!strMap.has(tk.v)) {
+        const key = Math.floor(Math.random() * 254) + 1;
+        const bytes = [];
+        for (let i = 0; i < tk.r.length; i++) {
+          bytes.push(tk.r.charCodeAt(i) ^ ((key + i) % 256));
+        }
+        strTable.push({k: key, b: bytes});
+        strMap.set(tk.v, strTable.length - 1);
       }
-      
-      // Convert to byte array
-      const bytes = [];
-      for (let i = 0; i < tk.raw.length; i++) {
-        bytes.push(tk.raw.charCodeAt(i));
-      }
-      
-      // Replace with decoder call
-      newTokens.push({t: 'expr', v: `${decoderName}({${bytes.join(',')}})`});
+    }
+  }
+
+  if (strTable.length === 0) return tokens;
+
+  const funcName = genName();
+  const tableName = genName();
+  const loader = `local function ${funcName}(t,k)local r={}for i=1,#t do r[i]=string.char(bit32.bxor(t[i],(k+i-1)%256))end return table.concat(r)end\nlocal ${tableName}={` +
+    strTable.map((s, idx) => `[${idx}]=${funcName}({${s.b.join(',')}},${s.k})`).join(',') + '}\n';
+
+  const newTokens = [{t: 'code', v: loader}, {t: 'ws', v: '\n'}];
+  for (const tk of tokens) {
+    if (tk.t === 'string' && strMap.has(tk.v)) {
+      newTokens.push({t: 'expr', v: `${tableName}[${strMap.get(tk.v)}]`});
     } else {
       newTokens.push(tk);
     }
@@ -137,47 +156,26 @@ function encryptStrings(tokens) {
 }
 
 // ============================================
-// 3. NUMBER OBFUSCATION (HEX)
+// LAYER 3: NUMBER OBFUSCATION
 // ============================================
 function obfuscateNumbers(tokens) {
   return tokens.map(tk => {
     if (tk.t !== 'number') return tk;
-    
-    // Only convert integers to Hex
-    if (Number.isInteger(parseFloat(tk.v)) && !tk.v.includes('.') && !tk.v.toLowerCase().includes('e')) {
-      const num = parseInt(tk.v);
-      if (num >= 0 && num <= 65535) {
-        return {t: 'number', v: '0x' + num.toString(16).toUpperCase()};
-      }
-    }
-    return tk;
+    const num = parseFloat(tk.v);
+    if (isNaN(num) || !Number.isInteger(num) || num < 0 || num > 65535) return tk;
+
+    const high = Math.floor(num / 256);
+    const low = num % 256;
+    const noise = Math.floor(Math.random() * 254) + 1;
+    return {t: 'expr', v: `bit32.bor(bit32.lshift(bit32.bxor(${high ^ noise},${noise}),8),${low})`};
   });
 }
 
 // ============================================
-// 4. MINIFICATION & GENERATION
+// LAYER 4: GENERATOR (PRESERVE WHITESPACE)
 // ============================================
 function generate(tokens) {
-  let result = '';
-  let lastType = null;
-  
-  for (const tk of tokens) {
-    if (tk.t === 'ws') {
-      // Add single space if needed to separate identifiers
-      if (lastType === 'id' || lastType === 'number') {
-        result += ' ';
-      }
-    } else if (tk.t === 'code') {
-      result += tk.v + ' ';
-    } else if (tk.t === 'expr') {
-      result += tk.v;
-    } else {
-      result += tk.v;
-    }
-    lastType = tk.t;
-  }
-  
-  return result;
+  return tokens.map(t => t.v).join('');
 }
 
 // ============================================
@@ -185,23 +183,17 @@ function generate(tokens) {
 // ============================================
 export function obfuscate(source) {
   try {
-    // 1. Tokenize (also removes comments)
+    if (!source || typeof source !== 'string' || source.trim().length === 0) {
+      throw new Error("Input kosong!");
+    }
+
     let tokens = tokenize(source);
-    
-    // 2. Encrypt Strings (AC Bypass)
     tokens = encryptStrings(tokens);
-    
-    // 3. Obfuscate Numbers
     tokens = obfuscateNumbers(tokens);
-    
-    // 4. Generate Minified Code
     let result = generate(tokens);
-    
-    // 5. Wrap in do-end for extra safety
-    result = `do ${result} end`;
-    
+
     return result;
   } catch (e) {
-    throw new Error('Obfuscation Error: ' + e.message);
+    throw new Error("Obfuscation Error: " + e.message);
   }
 }
